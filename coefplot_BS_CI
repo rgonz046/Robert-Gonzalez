@@ -1,0 +1,60 @@
+*=====================================================================
+* Do-file creates figure with coefficient estimates and BS coefficient "CIs" 
+* Author: Robert Gonzalez
+* Packages used:
+*	  coefplot (http://repec.sowi.unibe.ch/stata/coefplot/getting-started.html)
+* 	plotplainblind (https://danbischof.com/2016/01/16/update-figure-schemes/)
+*=====================================================================
+
+clear all
+set more off
+
+*===========================================================
+* Data 
+*===========================================================
+local controls_dim length weight headroom trunk
+local controls_mech mpg turn displacement gear_ratio
+local controls_orig foreign
+
+* Converting all continous variables to logs for predictions
+sysuse auto, clear
+foreach var in price `controls_dim' `controls_mech' {
+	replace `var'=ln(`var')
+}
+local controls_all `controls_dim' `controls_mech' `controls_orig'
+label var foreign "Foreign"
+tempfile lnauto
+save "`lnauto'"
+
+*===========================================================
+* Model
+*===========================================================	
+* Main model	
+estimates clear 
+	use `lnauto', clear	
+	qui:reg price `controls_all' 
+	est store main
+	
+* CIs for Model
+set seed 123456	
+forv i=1(1)250 {
+	qui:use `lnauto', clear	
+	bsample  //add ", cluster()" if needed)
+	qui:reg price `controls_all' 
+	est store col`i'
+}
+
+
+*===========================================================
+* Figure 
+*===========================================================
+coefplot (col*, msymbol(o) mcolor(navy%10) msize(medium) mlw(vthin)) ///
+(main, msymbol(o) mcolor(white) mlcolor(white)), ///
+drop(_cons) xline(0) ysize(5) ///
+noci nooffsets legend(off) byopts(row(1)) ///
+grid(none) scheme(plotplainblind) ///
+headings(length="{bf:DIMENSIONS}" ///
+		 mpg="{bf:MECHANICS}" ///
+		 foreign="{bf:ORIGIN}")
+
+
